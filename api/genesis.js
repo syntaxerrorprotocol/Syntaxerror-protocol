@@ -3,20 +3,26 @@ import { ACTIONS_CORS_HEADERS, createPostResponse } from '@solana/actions';
 import whitelist from '../whitelist.json';
 
 export default async function handler(req, res) {
-    // 1. Enable CORS for Solana Wallets
+    // 1. Expanded Headers for Validation
+    const headers = {
+        ...ACTIONS_CORS_HEADERS,
+        "X-Action-Version": "1",
+        "X-Blockchain-Ids": "solana:mainnet"
+    };
+
+    // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
-        return res.status(200).set(ACTIONS_CORS_HEADERS).end();
+        return res.status(200).set(headers).end();
     }
 
     try {
-        const { account } = req.body;
+        const account = req.body?.account;
         const url = new URL(req.url, `https://${req.headers.host}`);
         const size = url.searchParams.get("size");
 
         // 2. The Gatekeeper: Whitelist Check
-        // Ensures only the scraped 900-1000 wallets can interact
-        if (req.method === 'POST' && !whitelist.includes(account)) {
-            return res.status(403).json({
+        if (req.method === 'POST' && (!account || !whitelist.includes(account))) {
+            return res.status(403).set(headers).json({
                 icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/access-denied.png",
                 title: "SYSTEM_ERROR",
                 description: "WALLET_NOT_AUTHORIZED. ACCESS_DENIED.",
@@ -25,9 +31,9 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. GET Request: The Interface (What the user sees in Phantom/Solflare)
+        // 3. GET Request: The Interface
         if (req.method === 'GET') {
-            return res.status(200).set(ACTIONS_CORS_HEADERS).json({
+            return res.status(200).set(headers).json({
                 icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/ghost-render.png",
                 title: "GENESIS_GHOST_PROTOCOL",
                 description: "CHOSEN_STATUS: ACTIVE. SELECT_SIZE_TO_INITIALIZE_MINT.",
@@ -68,17 +74,14 @@ export default async function handler(req, res) {
         const treasury = new PublicKey(process.env.TREASURY_WALLET);
         const ops = new PublicKey(process.env.OPS_WALLET);
 
-        // Fetch Live Price to ensure exactly $3,000 USD
         const priceRes = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
         const priceData = await priceRes.json();
         const solPrice = parseFloat(priceData.price);
         const totalSOL = 3000 / solPrice; 
 
-        // Calculate 70/30 Split in Lamports
         const treasuryAmount = Math.floor(totalSOL * 0.7 * LAMPORTS_PER_SOL);
         const opsAmount = Math.floor(totalSOL * 0.3 * LAMPORTS_PER_SOL);
 
-        // Build the Multi-Instruction Transaction
         const transaction = new Transaction().add(
             SystemProgram.transfer({
                 fromPubkey: buyer,
@@ -102,11 +105,11 @@ export default async function handler(req, res) {
             },
         });
 
-        res.status(200).set(ACTIONS_CORS_HEADERS).json(payload);
+        res.status(200).set(headers).json(payload);
 
     } catch (err) {
         console.error(err);
-        res.status(500).set(ACTIONS_CORS_HEADERS).json({ error: "INTERNAL_SYSTEM_ERROR" });
+        res.status(500).set(headers).json({ error: "INTERNAL_SYSTEM_ERROR" });
     }
 }
 
