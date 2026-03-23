@@ -1,18 +1,18 @@
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { ACTIONS_CORS_HEADERS, createPostResponse } from '@solana/actions';
+import { createPostResponse } from '@solana/actions';
 import whitelist from '../whitelist.json';
 
 export default async function handler(req, res) {
-    // 1. Expanded Headers for Validation
-    const headers = {
-        ...ACTIONS_CORS_HEADERS,
-        "X-Action-Version": "1",
-        "X-Blockchain-Ids": "solana:mainnet"
-    };
+    // 1. Mandatory Blink Headers for Validation
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Encoding, x-sdk-variant, x-sdk-version, X-Action-Version, X-Blockchain-Ids');
+    res.setHeader('X-Action-Version', '1');
+    res.setHeader('X-Blockchain-Ids', 'solana:mainnet');
 
-    // Handle OPTIONS request for CORS preflight
+    // 2. Handle Preflight (The red OPTIONS error fix)
     if (req.method === 'OPTIONS') {
-        return res.status(200).set(headers).end();
+        return res.status(200).end();
     }
 
     try {
@@ -20,20 +20,9 @@ export default async function handler(req, res) {
         const url = new URL(req.url, `https://${req.headers.host}`);
         const size = url.searchParams.get("size");
 
-        // 2. The Gatekeeper: Whitelist Check
-        if (req.method === 'POST' && (!account || !whitelist.includes(account))) {
-            return res.status(403).set(headers).json({
-                icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/access-denied.png",
-                title: "SYSTEM_ERROR",
-                description: "WALLET_NOT_AUTHORIZED. ACCESS_DENIED.",
-                label: "TERMINATED",
-                disabled: true
-            });
-        }
-
-        // 3. GET Request: The Interface
+        // 3. GET Request: The Interface (The red GET error fix)
         if (req.method === 'GET') {
-            return res.status(200).set(headers).json({
+            return res.status(200).json({
                 icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/ghost-render.png",
                 title: "GENESIS_GHOST_PROTOCOL",
                 description: "CHOSEN_STATUS: ACTIVE. SELECT_SIZE_TO_INITIALIZE_MINT.",
@@ -68,12 +57,24 @@ export default async function handler(req, res) {
             });
         }
 
-        // 4. POST Request: The $3,000 Split Logic
+        // 4. The Gatekeeper: Whitelist Check (Triggered on POST)
+        if (req.method === 'POST' && (!account || !whitelist.includes(account))) {
+            return res.status(403).json({
+                icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/access-denied.png",
+                title: "SYSTEM_ERROR",
+                description: "WALLET_NOT_AUTHORIZED. ACCESS_DENIED.",
+                label: "TERMINATED",
+                disabled: true
+            });
+        }
+
+        // 5. POST Request: The $3,000 Split Logic
         const connection = new Connection(process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com");
         const buyer = new PublicKey(account);
         const treasury = new PublicKey(process.env.TREASURY_WALLET);
         const ops = new PublicKey(process.env.OPS_WALLET);
 
+        // Dynamic Pricing
         const priceRes = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
         const priceData = await priceRes.json();
         const solPrice = parseFloat(priceData.price);
@@ -105,11 +106,11 @@ export default async function handler(req, res) {
             },
         });
 
-        res.status(200).set(headers).json(payload);
+        res.status(200).json(payload);
 
     } catch (err) {
         console.error(err);
-        res.status(500).set(headers).json({ error: "INTERNAL_SYSTEM_ERROR" });
+        res.status(500).json({ error: "INTERNAL_SYSTEM_ERROR" });
     }
 }
 
