@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "pathPattern": "/api/genesis/**",
+      "apiPath": "/api/genesis"
+    }
+  ]
+}
+
