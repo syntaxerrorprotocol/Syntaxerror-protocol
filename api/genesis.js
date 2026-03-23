@@ -3,7 +3,7 @@ import { createPostResponse } from '@solana/actions';
 import whitelist from '../whitelist.json';
 
 export default async function handler(req, res) {
-    // 1. Core Blink Metadata (Required for Dial.to / Wallets)
+    // 1. Mandatory Blink Headers
     res.setHeader('X-Action-Version', '1');
     res.setHeader('X-Blockchain-Ids', 'solana:mainnet');
     res.setHeader('Content-Type', 'application/json');
@@ -54,53 +54,39 @@ export default async function handler(req, res) {
             });
         }
 
-        // 4. POST Request: The Whitelist & Transaction
+        // 4. POST Request: The Whitelist & Payment Logic
         if (req.method === 'POST') {
             const { account } = req.body;
-
-            // Whitelist Check
             if (!account || !whitelist.includes(account)) {
                 return res.status(403).json({
                     icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/access-denied.png",
                     title: "SYSTEM_ERROR",
-                    description: "WALLET_NOT_AUTHORIZED. ACCESS_DENIED.",
+                    description: "WALLET_NOT_AUTHORIZED.",
                     label: "TERMINATED",
                     disabled: true
                 });
             }
 
             const connection = new Connection(process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com");
-            const buyer = new PublicKey(account);
-            const treasury = new PublicKey(process.env.TREASURY_WALLET);
-            const ops = new PublicKey(process.env.OPS_WALLET);
-
-            // Dynamic Price Fetch
             const priceRes = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
             const priceData = await priceRes.json();
-            const solPrice = parseFloat(priceData.price);
-            const totalSOL = 3000 / solPrice; 
-
-            const treasuryAmount = Math.floor(totalSOL * 0.7 * LAMPORTS_PER_SOL);
-            const opsAmount = Math.floor(totalSOL * 0.3 * LAMPORTS_PER_SOL);
+            const totalSOL = 3000 / parseFloat(priceData.price);
 
             const transaction = new Transaction().add(
-                SystemProgram.transfer({ fromPubkey: buyer, toPubkey: treasury, lamports: treasuryAmount }),
-                SystemProgram.transfer({ fromPubkey: buyer, toPubkey: ops, lamports: opsAmount })
+                SystemProgram.transfer({ fromPubkey: new PublicKey(account), toPubkey: new PublicKey(process.env.TREASURY_WALLET), lamports: Math.floor(totalSOL * 0.7 * LAMPORTS_PER_SOL) }),
+                SystemProgram.transfer({ fromPubkey: new PublicKey(account), toPubkey: new PublicKey(process.env.OPS_WALLET), lamports: Math.floor(totalSOL * 0.3 * LAMPORTS_PER_SOL) })
             );
 
-            transaction.feePayer = buyer;
+            transaction.feePayer = new PublicKey(account);
             transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
             const payload = await createPostResponse({
                 fields: { transaction, message: `PURCHASE_CONFIRMED: SIZE_${size}` },
             });
-
             return res.status(200).json(payload);
         }
-
     } catch (err) {
-        console.error(err);
-        return res.status(500).json({ error: "INTERNAL_SYSTEM_ERROR" });
+        return res.status(500).json({ error: "INTERNAL_ERROR" });
     }
 }
 
