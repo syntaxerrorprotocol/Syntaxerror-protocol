@@ -3,12 +3,10 @@ import { createPostResponse } from '@solana/actions';
 import whitelist from '../whitelist.json';
 
 export default async function handler(req, res) {
-    // 1. Mandatory Blink Headers
+    // Basic Metadata Headers
     res.setHeader('X-Action-Version', '1');
     res.setHeader('X-Blockchain-Ids', 'solana:mainnet');
-    res.setHeader('Content-Type', 'application/json');
 
-    // 2. Handle OPTIONS (Preflight)
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -17,12 +15,11 @@ export default async function handler(req, res) {
         const url = new URL(req.url, `https://${req.headers.host}`);
         const size = url.searchParams.get("size");
 
-        // 3. GET Request: The Interface
         if (req.method === 'GET') {
             return res.status(200).json({
                 icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/ghost-render.png",
                 title: "GENESIS_GHOST_PROTOCOL",
-                description: "CHOSEN_STATUS: ACTIVE. SELECT_SIZE_TO_INITIALIZE_MINT.",
+                description: "CHOSEN_STATUS: ACTIVE. SELECT_SIZE.",
                 label: "MINT_GHOST",
                 links: {
                     actions: [
@@ -32,19 +29,12 @@ export default async function handler(req, res) {
                             parameters: [
                                 {
                                     name: "size",
-                                    label: "SELECT_INTERNATIONAL_SIZE",
+                                    label: "SELECT_SIZE",
                                     type: "select",
                                     options: [
-                                        { label: "US 7 / UK 6 / EU 40", value: "US7" },
-                                        { label: "US 8 / UK 7 / EU 41", value: "US8" },
-                                        { label: "US 8.5 / UK 7.5 / EU 42", value: "US8.5" },
-                                        { label: "US 9 / UK 8 / EU 42.5", value: "US9" },
-                                        { label: "US 9.5 / UK 8.5 / EU 43", value: "US9.5" },
-                                        { label: "US 10 / UK 9 / EU 44", value: "US10" },
-                                        { label: "US 10.5 / UK 9.5 / EU 44.5", value: "US10.5" },
-                                        { label: "US 11 / UK 10 / EU 45", value: "US11" },
-                                        { label: "US 12 / UK 11 / EU 46", value: "US12" },
-                                        { label: "US 13 / UK 12 / EU 47", value: "US13" }
+                                        { label: "US 9", value: "US9" },
+                                        { label: "US 10", value: "US10" },
+                                        { label: "US 11", value: "US11" }
                                     ]
                                 }
                             ]
@@ -54,17 +44,10 @@ export default async function handler(req, res) {
             });
         }
 
-        // 4. POST Request: The Whitelist & Payment Logic
         if (req.method === 'POST') {
             const { account } = req.body;
             if (!account || !whitelist.includes(account)) {
-                return res.status(403).json({
-                    icon: "https://raw.githubusercontent.com/syntaxerrorprotocol/Syntaxerror-protocol/main/assets/access-denied.png",
-                    title: "SYSTEM_ERROR",
-                    description: "WALLET_NOT_AUTHORIZED.",
-                    label: "TERMINATED",
-                    disabled: true
-                });
+                return res.status(403).json({ title: "UNAUTHORIZED", message: "ACCESS_DENIED" });
             }
 
             const connection = new Connection(process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com");
